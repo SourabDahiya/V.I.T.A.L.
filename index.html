@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>V.I.T.A.L — 3D+Time Cell Tracking & Lineage Reconstruction</title>
+  
+  <!-- Google Fonts: Outfit & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700;800&family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  
+  <!-- Plotly.js CDN for GPU-Accelerated 3D & 2D Scientific Visualizations -->
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  
+  <!-- Custom Modern Bioluminescent Design System -->
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <div class="app-container">
+    
+    <!-- ======================================================================
+         TOP HEADER & SPECIMEN SWITCHER
+         ====================================================================== -->
+    <header class="main-header">
+      <div class="brand-section">
+        <div class="logo-badge">🧬</div>
+        <div class="brand-titles">
+          <h1>V.I.T.A.L</h1>
+          <span class="subtitle">Visual Identification and Tracking of Ancestral Lineages &bull; 3D+Time Light-Sheet Microscopy</span>
+        </div>
+      </div>
+      
+      <div class="header-controls">
+        <!-- Application Mode Toggle (Demo Mode vs Process New Recording) -->
+        <div class="mode-toggle-group">
+          <button id="btn-mode-demo" class="mode-btn active" onclick="setAppMode('demo')">
+            ⚡ Demo Mode
+          </button>
+          <button id="btn-mode-pipeline" class="mode-btn" onclick="setAppMode('pipeline')">
+            🔬 Process New Recording
+          </button>
+        </div>
+
+        <span class="specimen-pill">
+          <span>Active:</span>
+          <span id="active-specimen-pill">6bba_48816121</span>
+        </span>
+        
+        <div class="specimen-select-wrapper">
+          <select id="specimen-select" class="specimen-select">
+            <!-- Populated via API -->
+          </select>
+        </div>
+      </div>
+    </header>
+
+    <!-- ======================================================================
+         PROCESS NEW RECORDING PANEL (PIPELINE EXECUTION)
+         ====================================================================== -->
+    <div id="pipeline-execution-panel" class="pipeline-panel">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 8px;">
+        <h3 style="color: var(--accent-cyan); margin: 0; font-size: 1.22rem; display: flex; align-items: center; gap: 8px;">
+          🔬 Process New Embryo Recording &bull; Live Pipeline Execution
+        </h3>
+        <span style="color: var(--text-muted); font-size: 0.88rem;">Select from 100+ raw Zarr volumes across train & test splits</span>
+      </div>
+
+      <div class="pipeline-grid">
+        <!-- 1. Specimen selection & Input Source -->
+        <div class="control-group">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; flex-wrap: wrap; gap: 4px;">
+            <label class="control-label" style="margin: 0;">Dataset Input Source:</label>
+            <div class="preset-pill-group">
+              <button type="button" id="btn-src-library" class="preset-pill active" onclick="switchPipelineSource('library')">📚 Library</button>
+              <button type="button" id="btn-src-upload" class="preset-pill" onclick="switchPipelineSource('upload')">📤 Upload Dataset</button>
+              <button type="button" id="btn-src-path" class="preset-pill" onclick="switchPipelineSource('path')">📁 Local Path</button>
+            </div>
+          </div>
+
+          <!-- Mode 1: Library Select (Default) -->
+          <div id="pipeline-source-library">
+            <select id="pipeline-rec-select" class="select-custom" style="width: 100%; padding: 10px 14px;">
+              <!-- Populated via API /api/available-recordings -->
+            </select>
+          </div>
+
+          <!-- Mode 2: Upload File (.zarr.zip, .zip, .tif) -->
+          <div id="pipeline-source-upload" style="display: none;">
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <input type="file" id="pipeline-file-input" accept=".zip,.zarr,.tif,.tiff" class="select-custom" style="flex: 1; padding: 7px 10px; font-size: 0.85rem;">
+              <button type="button" class="btn-glow" onclick="uploadCustomDataset()" style="white-space: nowrap; padding: 8px 14px; font-size: 0.85rem;">
+                Load
+              </button>
+            </div>
+            <p id="pipeline-upload-status" style="margin: 6px 0 0 0; font-size: 0.82rem; color: #94a3b8;">
+              Accepts <code>.zarr.zip</code> or 4D <code>.tif</code> (stateless session, no DB).
+            </p>
+          </div>
+
+          <!-- Mode 3: Local Path -->
+          <div id="pipeline-source-path" style="display: none;">
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <input type="text" id="pipeline-path-input" placeholder="e.g. D:/Data/embryo_01.zarr" class="select-custom" style="flex: 1; padding: 8px 12px; font-size: 0.88rem;">
+              <button type="button" class="btn-glow" onclick="loadCustomDatasetPath()" style="white-space: nowrap; padding: 8px 14px; font-size: 0.85rem;">
+                Load
+              </button>
+            </div>
+            <p id="pipeline-path-status" style="margin: 6px 0 0 0; font-size: 0.82rem; color: #94a3b8;">
+              Directly link external <code>.zarr</code> volume from disk without copying.
+            </p>
+          </div>
+        </div>
+
+        <!-- 2. Timepoint Draggable Slide Bar -->
+        <div class="control-group">
+          <div class="control-label" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <span>⏱️ Timepoint Slide Bar (t):</span>
+            <span id="pipeline-time-badge" class="time-range-badge">t = 0 to 20 &bull; 21 frames</span>
+          </div>
+
+          <!-- Draggable Slider Bar -->
+          <div class="slidebar-container">
+            <input id="pipeline-range-slider" type="range" class="control-slider pipeline-slider" min="1" max="99" value="20" step="1">
+            <div class="slidebar-scale">
+              <span>t=0</span>
+              <span>25</span>
+              <span>50</span>
+              <span>75</span>
+              <span>t=99</span>
+            </div>
+          </div>
+
+          <!-- Synchronized inputs & Quick Presets -->
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px; flex-wrap: wrap; gap: 6px;">
+            <div style="display: flex; align-items: center; gap: 6px; font-size: 0.82rem; color: #94a3b8;">
+              <span>Start:</span>
+              <input id="pipeline-t-start" type="number" min="0" max="98" value="0" class="select-custom mini-num" style="width: 55px; padding: 4px 6px; text-align: center;">
+              <span>End:</span>
+              <input id="pipeline-t-end" type="number" min="1" max="99" value="20" class="select-custom mini-num" style="width: 55px; padding: 4px 6px; text-align: center;">
+            </div>
+            <div class="preset-pill-group">
+              <button type="button" class="preset-pill active" onclick="setPipelineRange(0, 20)">20f (Fast)</button>
+              <button type="button" class="preset-pill" onclick="setPipelineRange(0, 40)">40f (Med)</button>
+              <button type="button" class="preset-pill" onclick="setPipelineRange(0, 99)">100f (Full)</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. Actions & Options -->
+        <div class="control-group">
+          <label style="display: flex; align-items: center; gap: 8px; color: #ffffff; font-size: 0.9rem; cursor: pointer; margin-bottom: 8px;">
+            <input id="pipeline-use-gt" type="checkbox" checked style="accent-color: var(--accent-cyan);">
+            <span>Benchmark with Ground-Truth (Fast)</span>
+          </label>
+          <button id="btn-run-pipeline" class="btn-glow" onclick="triggerPipelineRun()" style="width: 100%;">
+            🚀 Run Live Pipeline
+          </button>
+        </div>
+      </div>
+
+      <!-- Execution Progress & Log Box -->
+      <div id="pipeline-progress-section" style="display: none; margin-top: 16px;">
+        <div style="display: flex; justify-content: space-between; font-size: 0.9rem; font-weight: 600; color: #ffffff;">
+          <span id="pipeline-status-text">Processing volume...</span>
+          <span id="pipeline-pct-text" style="color: var(--accent-cyan); font-family: var(--font-mono);">0%</span>
+        </div>
+        <div class="pipeline-progress-bar">
+          <div id="pipeline-progress-fill" class="pipeline-progress-fill"></div>
+        </div>
+        <div id="pipeline-console-log" class="console-log-box">
+          [System Ready]
+        </div>
+      </div>
+    </div>
+
+    <!-- Top Metadata Bar -->
+    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-top: -12px; margin-bottom: 20px;">
+      <p style="color: #cbd5e1; font-size: 0.96rem; margin: 0; font-weight: 500;">
+        🔬 <b>Physical Volume:</b> <code style="color: #00f2fe; background: rgba(0,0,0,0.5); padding: 2px 8px; border-radius: 4px; font-family: var(--font-mono);">104 µm &times; 104 µm &times; 104 µm</code> 
+        &bull; <b>Voxel Scale:</b> Z = 1.625 µm, Y = 0.406 µm, X = 0.406 µm (4.0&times; Anisotropy) &bull; 100 Time-Lapse Frames
+      </p>
+      <span id="app-mode-badge" style="background: rgba(16, 185, 129, 0.15); border: 1px solid var(--accent-emerald); color: var(--accent-emerald); font-size: 0.82rem; font-weight: 700; padding: 3px 10px; border-radius: var(--radius-pill); text-transform: uppercase; letter-spacing: 0.05em;">
+        ● Demo Mode Active
+      </span>
+    </div>
+
+
+    <!-- ======================================================================
+         NAVIGATION TABS (EXACT SPECIFICATION: 5 TABS)
+         ====================================================================== -->
+    <nav class="nav-tabs-container">
+      <button class="nav-tab-btn active" data-tab="tab-cinema">
+        <span class="tab-icon">🎬</span> 1. Embryo Timelapse Cinema
+      </button>
+      <button class="nav-tab-btn" data-tab="tab-detection">
+        <span class="tab-icon">🔬</span> 2. Slice-by-Slice Explorer
+      </button>
+      <button class="nav-tab-btn" data-tab="tab-trajectories">
+        <span class="tab-icon">🚀</span> 3. Trajectories & Dynamics
+      </button>
+      <button class="nav-tab-btn" data-tab="tab-lineage">
+        <span class="tab-icon">🌳</span> 4. Ancestral Lineage Tree
+      </button>
+      <button class="nav-tab-btn" data-tab="tab-accuracy">
+        <span class="tab-icon">🎯</span> 5. Ground Truth & Accuracy
+      </button>
+    </nav>
+
+    <!-- ======================================================================
+         TAB 1: EMBRYO TIMELAPSE CINEMA
+         ====================================================================== -->
+    <main id="tab-cinema" class="tab-panel active">
+      <div class="desc-card border-emerald">
+        <p>🎬 <b>Live Embryo Cinema:</b> Compare the raw microscope recording against the AI-tracked cell lineages side-by-side across all 100 time frames (t = 0 to 99).</p>
+      </div>
+
+      <!-- Side-by-Side Dual Video Players -->
+      <div class="grid-2col">
+        <div class="video-card">
+          <div class="video-header">
+            <h4 style="color: var(--accent-emerald);">🟢 1. Raw Microscopy Video</h4>
+            <p>Original, unannotated fluorescence light-sheet recording.</p>
+          </div>
+          <div class="video-wrapper">
+            <video id="video-raw" loop autoplay muted playsinline controls></video>
+          </div>
+          <a id="btn-dl-raw-vid" class="btn-glow" download>
+            📥 Download Raw Video (.mp4)
+          </a>
+        </div>
+
+        <div class="video-card">
+          <div class="video-header">
+            <h4 style="color: var(--accent-cyan);">🧬 2. AI Tracked & Annotated Video</h4>
+            <p>Overlaid with cell IDs, movement tracks, and cell division markers.</p>
+          </div>
+          <div class="video-wrapper">
+            <video id="video-ann" loop autoplay muted playsinline controls></video>
+          </div>
+          <a id="btn-dl-ann-vid" class="btn-glow" download>
+            📥 Download Annotated Video (.mp4)
+          </a>
+        </div>
+      </div>
+
+      <!-- Frame at Time Point -->
+      <h3 class="section-title">🔍 Frame at Time Point</h3>
+      <p style="color: var(--text-secondary); margin-bottom: 14px; font-weight: 500;">
+        Freeze playback at any frame (t = 0 to 99) to inspect optical projections and cell locations.
+      </p>
+
+      <div class="controls-bar">
+        <div class="control-group">
+          <div class="control-label">
+            <span>Freeze Frame at Timepoint (t):</span>
+            <span id="cinema-frame-val" style="color: var(--accent-cyan); font-family: var(--font-mono); font-weight: 800; font-size: 1.1rem;">00</span>
+          </div>
+          <input id="cinema-scrub-slider" type="range" class="control-slider" min="0" max="99" value="0">
+        </div>
+      </div>
+
+      <div class="grid-view-sidebar">
+        <!-- Frozen MIP Image Box -->
+        <div class="chart-box" style="display: flex; align-items: center; justify-content: center; background: #000000; min-height: 440px; padding: 12px; border: 1px solid var(--border-subtle);">
+          <img id="cinema-freeze-img" src="" alt="Frozen Frame MIP" style="width: 100%; max-width: 440px; height: auto; max-height: 440px; aspect-ratio: 1 / 1; object-fit: contain; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);">
+        </div>
+
+        <!-- Frame Diagnostics -->
+        <div>
+          <h4 style="color: #ffffff; font-size: 1.1rem; margin-bottom: 12px;">Specimen Diagnostics at Current Frame:</h4>
+          
+          <div id="cinema-mitosis-alert" class="alert-mitosis" style="display: none;">
+            🚨 Mitotic Division in progress!
+          </div>
+
+          <div class="diagnostic-card">
+            <div class="diagnostic-item">
+              <span>Active Cell Population:</span>
+              <span id="diag-active-count" class="badge-val emerald">0 cells</span>
+            </div>
+            <div class="diagnostic-item">
+              <span>Mitotic Divisions in this frame:</span>
+              <span id="diag-div-count" class="badge-val rose">0</span>
+            </div>
+            <div class="diagnostic-item">
+              <span>Mean Coordinate Depth:</span>
+              <span id="diag-mean-depth" class="badge-val cyan">Z = 0.0 µm</span>
+            </div>
+          </div>
+
+          <h5 style="color: #ffffff; margin-bottom: 8px;">Cells Active in This Frame:</h5>
+          <div class="table-container">
+            <div class="table-scroll" style="max-height: 280px;">
+              <table id="cinema-cells-table" class="data-table">
+                <thead>
+                  <tr>
+                    <th>Cell ID</th>
+                    <th>Z (µm)</th>
+                    <th>Y (µm)</th>
+                    <th>X (µm)</th>
+                    <th>Event</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <!-- Populated via JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- ======================================================================
+         TAB 2: SLICE-BY-SLICE EXPLORER (DETECTION)
+         ====================================================================== -->
+    <main id="tab-detection" class="tab-panel">
+      <!-- Detection Metrics -->
+      <div class="metrics-grid" style="grid-template-columns: repeat(3, 1fr);">
+        <div class="metric-card">
+          <div class="metric-title">Total 3D Detections</div>
+          <div id="det-unique-cells" class="metric-value">...</div>
+          <div class="metric-subtitle">Frame-by-frame 3D points</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-title">Average Cells / Frame</div>
+          <div id="det-avg-cells" class="metric-value accent-cyan">...</div>
+          <div class="metric-subtitle">Mean active population</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-title">Peak Cell Count</div>
+          <div id="det-peak-cells" class="metric-value">...</div>
+          <div class="metric-subtitle">Maximum density frame</div>
+        </div>
+      </div>
+
+      <!-- Interactive Controls -->
+      <div class="controls-bar">
+        <div class="control-group" style="flex: 2;">
+          <div class="control-label" style="display: flex; justify-content: space-between; align-items: center;">
+            <span>Drag Time Frame (t):</span>
+            <span id="detect-frame-badge-val" style="color: var(--accent-cyan); font-family: var(--font-mono); font-weight: 800; font-size: 1.05rem;">Frame 00</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <input id="detect-frame-slider" type="range" class="control-slider" min="0" max="99" value="0" style="flex: 1;">
+            <select id="detect-frame-select" class="select-custom" style="width: 110px; padding: 6px 10px;">
+              <!-- Populated via JS -->
+            </select>
+          </div>
+        </div>
+
+        <div class="control-group">
+          <label class="control-label">Visualization Mode:</label>
+          <div class="radio-group">
+            <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; color: #ffffff; font-size: 0.9rem;">
+              <input type="radio" name="detect-mode" value="mip" checked> Maximum Intensity Projection (MIP)
+            </label>
+            <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; color: #ffffff; font-size: 0.9rem; margin-left: 12px;">
+              <input type="radio" name="detect-mode" value="slice"> Optical Z-Section Slice
+            </label>
+          </div>
+        </div>
+
+        <div id="detect-z-container" class="control-group" style="display: none; flex: 1;">
+          <div class="control-label">
+            <span>Optical Z Slice:</span>
+            <span id="detect-z-val" style="color: var(--accent-cyan); font-weight: bold;">32</span>
+          </div>
+          <input id="detect-z-slider" type="range" class="control-slider" min="0" max="63" value="32">
+        </div>
+      </div>
+
+      <!-- Current Frame Header Badge -->
+      <div id="detect-frame-badge" style="background: linear-gradient(135deg, rgba(0, 242, 254, 0.12), rgba(16, 185, 129, 0.15)); border: 1px solid rgba(0, 242, 254, 0.5); border-radius: var(--radius-md); padding: 12px 18px; margin-bottom: 20px;">
+        💡 Frame t = 00: Loading detections...
+      </div>
+
+      <!-- Visual View & Coordinates Table (NO MEAN INTENSITY) -->
+      <div class="grid-view-sidebar">
+        <div id="detect-chart-box" class="chart-box">
+          <!-- Plotly Interactive Image -->
+        </div>
+
+        <div>
+          <h4 style="color: #ffffff; font-size: 1.05rem; margin-bottom: 10px;">Cells Detected at This Frame:</h4>
+          <div class="table-container">
+            <div class="table-scroll" style="max-height: 440px;">
+              <table id="detect-cells-table" class="data-table">
+                <thead>
+                  <tr>
+                    <th>Unique ID (Spot #)</th>
+                    <th>Cell Track #</th>
+                    <th>Z (vox)</th>
+                    <th>Y (vox)</th>
+                    <th>X (vox)</th>
+                    <th>Volume (vox)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <!-- Populated via JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Download Stage 1 Section -->
+      <div class="desc-card border-cyan" style="margin-top: 30px;">
+        <h4 style="color: #ffffff; margin-bottom: 6px;">📁 Download Stage 1 Detections</h4>
+        <p style="margin-bottom: 14px;">Download the complete table of detected cells across all 100 frames as a standard CSV file (<code>unique_id, cell_id, track_id, detection_id, t, z, y, x, volume</code>).</p>
+        <a id="btn-dl-stage1" class="btn-glow" style="max-width: 320px;" download>
+          📥 Download cells_stage1.csv
+        </a>
+      </div>
+    </main>
+
+    <!-- ======================================================================
+         TAB 3: TRAJECTORIES & DYNAMICS (TRACKING)
+         ====================================================================== -->
+    <main id="tab-trajectories" class="tab-panel">
+
+      <!-- Trajectory Overall Stats -->
+      <div class="metrics-grid" style="grid-template-columns: repeat(4, 1fr);">
+        <div class="metric-card">
+          <div class="metric-title">Total Track Lines</div>
+          <div id="traj-total-tracks" class="metric-value">...</div>
+          <div class="metric-subtitle">Persistent cell paths</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-title">Mean Track Lifetime</div>
+          <div id="traj-mean-len" class="metric-value accent-cyan">...</div>
+          <div class="metric-subtitle">Temporal persistence</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-title">Longest Track</div>
+          <div id="traj-longest-track" class="metric-value">...</div>
+          <div class="metric-subtitle">Max continuous duration</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-title">3D Linked Points</div>
+          <div id="traj-total-points" class="metric-value accent-emerald">...</div>
+          <div class="metric-subtitle">Full spatiotemporal points</div>
+        </div>
+      </div>
+
+      <!-- ====================================================================
+           GRAPH 1: ALL CELL TRAJECTORIES IN A SINGLE GRAPH (GLOBAL ENSEMBLE)
+           ==================================================================== -->
+      <h3 class="section-title cyan">🌐 1. Global Trajectory Ensemble (All Cells in a Single Graph)</h3>
+
+      <div class="controls-bar">
+        <div class="control-group">
+          <label class="control-label">Global Ensemble Projection:</label>
+          <div class="radio-group">
+            <label style="color: #ffffff; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+              <input type="radio" name="global-proj" value="3d" checked> 3D Spatial Line Tracks (All Cells)
+            </label>
+            <label style="color: #ffffff; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; gap: 6px; margin-left: 14px;">
+              <input type="radio" name="global-proj" value="2d"> 2D Multi-Track Projection (All Cells)
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div id="global-traj-chart" class="chart-box" style="margin-bottom: 40px;">
+        <!-- Plotly Chart -->
+      </div>
+
+      <!-- ====================================================================
+           GRAPH 2: INDIVIDUAL CELL TRAJECTORY DEEP-DIVE
+           ==================================================================== -->
+      <h3 class="section-title emerald">🎯 2. Individual Cell Trajectory Deep-Dive</h3>
+
+      <div class="controls-bar">
+        <div class="control-group" style="flex: 1.4;">
+          <label class="control-label">Select Individual Cell (Track) ID:</label>
+          <select id="single-track-select" class="select-custom">
+            <!-- Populated via JS -->
+          </select>
+        </div>
+
+        <div class="control-group">
+          <label class="control-label">Individual Chart Projection:</label>
+          <div class="radio-group">
+            <label style="color: #ffffff; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+              <input type="radio" name="single-proj" value="3d" checked> 3D Spatial Line Track (Z vs Y vs X)
+            </label>
+            <label style="color: #ffffff; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; gap: 6px; margin-left: 14px;">
+              <input type="radio" name="single-proj" value="2d"> 2D Projection Chart (Y vs X)
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="metrics-grid" style="grid-template-columns: 1fr; max-width: 280px; margin-bottom: 18px;">
+        <div class="metric-card">
+          <div class="metric-title">Frames Tracked</div>
+          <div id="single-frames-tracked" class="metric-value accent-emerald">0 frames</div>
+          <div id="single-frame-span" class="metric-subtitle">t=0 to t=0</div>
+        </div>
+      </div>
+
+      <div class="grid-view-sidebar" style="margin-bottom: 40px;">
+        <div id="single-traj-chart" class="chart-box">
+          <!-- Plotly Chart -->
+        </div>
+
+        <div>
+          <h4 style="color: #ffffff; font-size: 1.05rem; margin-bottom: 10px;">Time-Resolved Steps for Cell:</h4>
+          <div class="table-container">
+            <div class="table-scroll" style="max-height: 420px;">
+              <table id="single-track-table" class="data-table">
+                <thead>
+                  <tr>
+                    <th>t</th>
+                    <th>Z (vox)</th>
+                    <th>Y (vox)</th>
+                    <th>X (vox)</th>
+                    <th>Z (µm)</th>
+                    <th>Y (µm)</th>
+                    <th>X (µm)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <!-- Populated via JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ====================================================================
+           GRAPH 3: MULTI-CELL COHORT TRAJECTORIES (SELECT 3-4 SPECIFIC CELLS)
+           ==================================================================== -->
+      <h3 class="section-title sky">🔬 3. Multi-Cell Cohort Trajectories (Select Specific Cells Together)</h3>
+
+      <div class="controls-bar">
+        <div class="control-group" style="flex: 1.5;">
+          <label class="control-label">Cohort Cell Selection (Choose 3-4 cells):</label>
+          <div id="cohort-chips" class="chips-container">
+            <!-- Chips rendered via JS -->
+          </div>
+          <select id="cohort-add-select" class="select-custom" style="margin-top: 6px;">
+            <option value="">+ Add cell to cohort...</option>
+          </select>
+        </div>
+
+        <div class="control-group">
+          <label class="control-label">Cohort Chart Projection:</label>
+          <div class="radio-group">
+            <label style="color: #ffffff; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+              <input type="radio" name="cohort-proj" value="3d" checked> 3D Spatial Line Tracks
+            </label>
+            <label style="color: #ffffff; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; gap: 6px; margin-left: 14px;">
+              <input type="radio" name="cohort-proj" value="2d"> 2D Multi-Cell Projection
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div id="cohort-traj-chart" class="chart-box" style="margin-bottom: 30px;">
+        <!-- Plotly Chart -->
+      </div>
+
+      <!-- Download Stage 2 Section -->
+      <div class="desc-card border-emerald">
+        <h4 style="color: #ffffff; margin-bottom: 6px;">📁 Download Stage 2 Trajectories</h4>
+        <p style="margin-bottom: 14px;">Download the linked cell trajectories across all frames with spatial coordinates and event statuses as a CSV file (<code>track_id, t, z, y, x, z_um, y_um, x_um, event</code>).</p>
+        <a id="btn-dl-stage2" class="btn-glow" style="max-width: 320px;" download>
+          📥 Download cells_stage2.csv
+        </a>
+      </div>
+    </main>
+
+    <!-- ======================================================================
+         TAB 4: ANCESTRAL LINEAGE TREE
+         ====================================================================== -->
+    <main id="tab-lineage" class="tab-panel">
+      <!-- Lineage Summary Metrics -->
+      <div class="metrics-grid" style="grid-template-columns: repeat(4, 1fr);">
+        <div class="metric-card">
+          <div class="metric-title">Progenitor Roots</div>
+          <div id="lin-roots" class="metric-value">...</div>
+          <div class="metric-subtitle">Founder ancestral cells</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-title">Mitotic Divisions</div>
+          <div id="lin-divs" class="metric-value accent-rose">...</div>
+          <div class="metric-subtitle">Parent &rarr; 2 Daughters</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-title">Lineage Depth</div>
+          <div id="lin-depth" class="metric-value">...</div>
+          <div class="metric-subtitle">Maximum tree depth</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-title">Dividing Cell Ratio</div>
+          <div id="lin-ratio" class="metric-value accent-cyan">...</div>
+          <div class="metric-subtitle">Active mitosis frequency</div>
+        </div>
+      </div>
+
+      <!-- Global Specimen Lineage Tree (MAIN VISUALIZATION) -->
+      <h3 class="section-title emerald">🌳 Specimen Ancestral Lineage Tree</h3>
+      <div class="desc-card border-emerald">
+        <p>🌳 <b>Specimen Family Tree:</b> Time flows downward from top to bottom. Splitting branches show where cells underwent division into two daughter cells.</p>
+      </div>
+
+      <div id="lineage-tree-chart" class="chart-box" style="margin-bottom: 36px; min-height: 540px;">
+        <!-- Plotly Dendrogram Tree -->
+      </div>
+
+      <!-- Relationship Inspector (Requirement 5: No individual mini-graphs!) -->
+      <h3 class="section-title cyan">🔍 Cell Lineage & Relationship Inspector</h3>
+
+      <div class="controls-bar" style="margin-bottom: 16px;">
+        <div class="control-group" style="max-width: 440px;">
+          <label class="control-label">Select Cell ID to Inspect Lineage Relationships:</label>
+          <select id="lineage-cell-select" class="select-custom">
+            <!-- Populated via JS -->
+          </select>
+        </div>
+      </div>
+
+      <div class="diagnostic-card" style="border: 1.5px solid rgba(0, 242, 254, 0.4); padding: 20px; margin-bottom: 30px;">
+        <h4 style="color: var(--accent-cyan); margin-bottom: 14px; font-size: 1.15rem;">
+          🧬 Lineage Record for Cell <span id="lin-card-cell-id" style="color: #ffffff;">#0</span>
+        </h4>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; font-size: 0.98rem;">
+          <div>
+            <p style="margin-bottom: 8px;">&bull; <b>Cell Role:</b> <span id="lin-role" style="color: var(--accent-emerald); font-weight: 700;">Progenitor Root</span></p>
+            <p style="margin-bottom: 8px;">&bull; <b>Parent Cell:</b> <code id="lin-parent" style="color: var(--accent-sky); background: rgba(0,0,0,0.4); padding: 2px 8px; border-radius: 4px;">None</code></p>
+            <p style="margin-bottom: 0;">&bull; <b>Sibling Cells:</b> <code id="lin-siblings" style="color: var(--accent-sky); background: rgba(0,0,0,0.4); padding: 2px 8px; border-radius: 4px;">None</code></p>
+          </div>
+          <div>
+            <p style="margin-bottom: 8px;">&bull; <b>Mitotic Divisions:</b> <span id="lin-has-div" style="color: var(--accent-rose); font-weight: 700;">No</span></p>
+            <p style="margin-bottom: 8px;">&bull; <b>Daughter Cells:</b> <code id="lin-daughters" style="color: var(--accent-rose); background: rgba(0,0,0,0.4); padding: 2px 8px; border-radius: 4px;">None</code></p>
+            <p style="margin-bottom: 0;">&bull; <b>Granddaughter Cells:</b> <code id="lin-granddaughters" style="color: var(--accent-rose); background: rgba(0,0,0,0.4); padding: 2px 8px; border-radius: 4px;">None</code></p>
+          </div>
+          <div>
+            <p style="margin-bottom: 8px;">&bull; <b>Active Lifetime:</b> <span id="lin-lifespan" style="color: #ffffff; font-weight: 700;">0 frames</span></p>
+            <p style="margin-bottom: 0;">&bull; <b>Mean Speed:</b> <span id="lin-speed" style="color: var(--accent-emerald); font-weight: 700;">0.00 µm/frame</span></p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Lineage Downloads -->
+      <div class="desc-card border-emerald">
+        <h4 style="color: #ffffff; margin-bottom: 6px;">📁 Download Lineage Files</h4>
+        <p style="margin-bottom: 14px;">Download the complete cell lineage table (<code>lineage_stage3.csv</code>) and the standard graph file (<code>lineage_output.geff</code>).</p>
+        <div style="display: flex; gap: 16px; flex-wrap: wrap;">
+          <a id="btn-dl-stage3" class="btn-glow" style="max-width: 280px;" download>
+            📥 Download lineage_stage3.csv
+          </a>
+          <a id="btn-dl-geff" class="btn-glow" style="max-width: 280px;" download>
+            📥 Download lineage_output.geff
+          </a>
+        </div>
+      </div>
+    </main>
+
+    <!-- ======================================================================
+         TAB 5: GROUND TRUTH & ACCURACY (EVALUATION)
+         ====================================================================== -->
+    <main id="tab-accuracy" class="tab-panel">
+      <!-- Specimen Summary Section -->
+      <h3 class="section-title cyan" style="margin-bottom: 14px;">📊 Specimen Summary</h3>
+      <div class="metrics-grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-bottom: 28px;">
+        <div class="metric-card">
+          <div class="metric-title">Total 3D Detections</div>
+          <div id="metric-total-cells" class="metric-value">...</div>
+          <div class="metric-subtitle">Across 100 frames</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-title">Unique Cells (Tracks)</div>
+          <div id="metric-track-lines" class="metric-value">...</div>
+          <div class="metric-subtitle">Persistent cell identities</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-title">Progenitor Roots</div>
+          <div id="metric-progenitor-roots" class="metric-value accent-emerald">...</div>
+          <div class="metric-subtitle">Founder ancestral cells</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-title">Mitotic Divisions</div>
+          <div id="metric-mitotic-divisions" class="metric-value accent-rose">...</div>
+          <div class="metric-subtitle">Parent &rarr; 2 Daughters</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-title">Lineage Depth</div>
+          <div id="metric-lineage-depth" class="metric-value">...</div>
+          <div class="metric-subtitle">Max tree generations</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-title">Edge Jaccard</div>
+          <div id="metric-edge-jaccard" class="metric-value accent-cyan">...</div>
+          <div class="metric-subtitle">Tracking benchmark score</div>
+        </div>
+      </div>
+
+      <!-- Primary Metrics -->
+      <h3 class="section-title emerald" style="margin-bottom: 14px;">🎯 Ground Truth Evaluation</h3>
+      <div class="metrics-grid" style="grid-template-columns: repeat(4, 1fr);">
+        <div class="metric-card">
+          <div class="metric-title">Edge Jaccard</div>
+          <div id="acc-edge-jaccard" class="metric-value">0.0000</div>
+          <div class="metric-subtitle">Primary competition score</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-title">Division Jaccard</div>
+          <div id="acc-div-jaccard" class="metric-value accent-cyan">0.0000</div>
+          <div class="metric-subtitle">Mitosis event accuracy</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-title">Matched Mitoses</div>
+          <div id="acc-matched-mitoses" class="metric-value">0 / 0</div>
+          <div class="metric-subtitle">True Positive divisions</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-title">Ground Truth Nodes</div>
+          <div id="acc-gt-nodes" class="metric-value accent-emerald">0</div>
+          <div class="metric-subtitle">Expert manual annotations</div>
+        </div>
+      </div>
+
+      <!-- Breakdown Table -->
+      <h4 style="color: #ffffff; margin-bottom: 8px;">📊 Confusion Matrix & Breakdown Table</h4>
+
+      <div class="table-container" style="margin-bottom: 30px;">
+        <table id="accuracy-breakdown-table" class="data-table">
+          <thead>
+            <tr>
+              <th>Metric Category</th>
+              <th>True Positives (TP)</th>
+              <th>False Positives (FP)</th>
+              <th>False Negatives (FN)</th>
+              <th>Precision</th>
+              <th>Recall</th>
+              <th>Jaccard Score</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- Populated via JS -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Metric Definitions -->
+      <h4 style="color: #ffffff; margin-bottom: 8px;">📐 How Accuracy Is Measured</h4>
+      <div class="grid-2col">
+        <div class="diagnostic-card" style="border-left: 4px solid var(--accent-cyan);">
+          <h5 style="color: var(--accent-cyan); font-size: 1.1rem; margin-bottom: 8px;">1. Edge Jaccard (Tracking Score)</h5>
+          <p style="color: #ffffff; font-size: 0.92rem; line-height: 1.6; margin-bottom: 10px;">
+            Measures how accurately cell movements between frames are connected, with a penalty for predicting phantom cells:
+          </p>
+          <div style="background: rgba(0,0,0,0.4); padding: 10px 14px; border-radius: var(--radius-sm); margin-bottom: 10px;">
+            <span style="color: var(--accent-emerald); font-family: var(--font-mono); font-weight: 700; font-size: 0.92rem;">
+              Edge Jaccard = [TP / (TP + FP + FN)] &times; min(1.0, N_ground_truth / N_predicted)
+            </span>
+          </div>
+          <p style="color: #cbd5e1; font-size: 0.88rem; margin: 0;">
+            Cells are matched to ground truth if their 3D physical position is within <b>7.0 µm</b>.
+          </p>
+        </div>
+
+        <div class="diagnostic-card" style="border-left: 4px solid var(--accent-emerald);">
+          <h5 style="color: var(--accent-emerald); font-size: 1.1rem; margin-bottom: 8px;">2. Division Jaccard (Mitosis Score)</h5>
+          <p style="color: #ffffff; font-size: 0.92rem; line-height: 1.6; margin-bottom: 10px;">
+            Measures how accurately cell splitting events (mitosis) are discovered:
+          </p>
+          <div style="background: rgba(0,0,0,0.4); padding: 10px 14px; border-radius: var(--radius-sm); margin-bottom: 10px;">
+            <span style="color: var(--accent-emerald); font-family: var(--font-mono); font-weight: 700; font-size: 0.92rem;">
+              Division Jaccard = TP_div / (TP_div + FP_div + FN_div)
+            </span>
+          </div>
+          <p style="color: #cbd5e1; font-size: 0.88rem; margin: 0;">
+            Counted as a match (TP) only when the parent cell and <b>both daughter cells</b> are correctly identified within <b>1.5 to 16.0 µm</b>.
+          </p>
+        </div>
+      </div>
+    </main>
+
+  </div>
+
+  <!-- Application Controller -->
+  <script src="js/app.js"></script>
+</body>
+</html>

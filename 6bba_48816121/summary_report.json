@@ -1,0 +1,27 @@
+{
+  "recording_id": "6bba_48816121",
+  "elapsed_seconds": 0.91,
+  "total_detections": 935,
+  "total_tracks": 53,
+  "total_divisions": 7,
+  "total_roots": 39,
+  "max_lineage_depth": 2,
+  "evaluation": {
+    "edge_jaccard": 0.9695982627578719,
+    "raw_edge_jaccard": 0.9695982627578719,
+    "node_penalty": 1.0,
+    "division_jaccard": 0.5,
+    "edge_tp": 893,
+    "edge_fp": 3,
+    "edge_fn": 25,
+    "n_gt_edges": 918,
+    "n_pred_edges": 896,
+    "n_gt_nodes": 935,
+    "n_pred_nodes": 935,
+    "division_tp": 4,
+    "division_fp": 3,
+    "division_fn": 1,
+    "n_gt_divisions": 5,
+    "n_pred_divisions": 7
+  }
+}

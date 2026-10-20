@@ -1,0 +1,22 @@
+# Core Scientific Computing
+numpy>=1.24.0
+pandas>=2.0.0
+scipy>=1.10.0
+scikit-image>=0.20.0
+networkx>=3.0
+
+# Deep Learning & 3D Instance Segmentation
+torch>=2.0.0
+cellpose>=3.0.0
+
+# Microscopy & Volumetric Array I/O
+zarr>=2.14.0
+tifffile>=2023.1.0
+imageio>=2.28.0
+imageio-ffmpeg>=0.4.8
+Pillow>=9.5.0
+opencv-python-headless>=4.7.0
+
+# Web Application & Visualization
+flask>=2.3.0
+plotly>=5.14.0
